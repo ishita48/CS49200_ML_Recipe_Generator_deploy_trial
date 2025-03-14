@@ -9,9 +9,6 @@ Original file is located at
 ### Code from Hugging Face (https://huggingface.co/flax-community/t5-recipe-generation)
 """
 
-# Installing requirements
-!pip install transformers
-
 from transformers import FlaxAutoModelForSeq2SeqLM
 from transformers import AutoTokenizer
 
@@ -20,14 +17,6 @@ tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME_OR_PATH, use_fast=True)
 model = FlaxAutoModelForSeq2SeqLM.from_pretrained(MODEL_NAME_OR_PATH)
 
 prefix = "items: "
-# generation_kwargs = {
-#     "max_length": 512,
-#     "min_length": 64,
-#     "no_repeat_ngram_size": 3,
-#     "early_stopping": True,
-#     "num_beams": 5,
-#     "length_penalty": 1.5,
-# }
 generation_kwargs = {
     "max_length": 512,
     "min_length": 64,
@@ -37,16 +26,15 @@ generation_kwargs = {
     "top_p": 0.95
 }
 
-
 special_tokens = tokenizer.all_special_tokens
 tokens_map = {
     "<sep>": "--",
     "<section>": "\n"
 }
+
 def skip_special_tokens(text, special_tokens):
     for token in special_tokens:
         text = text.replace(token, "")
-
     return text
 
 def target_postprocessing(texts, special_tokens):
@@ -82,10 +70,9 @@ def generation_function(texts):
         input_ids=input_ids,
         attention_mask=attention_mask,
         **generation_kwargs
-    )
-    generated = output_ids.sequences
+    ).sequences
     generated_recipe = target_postprocessing(
-        tokenizer.batch_decode(generated, skip_special_tokens=False),
+        tokenizer.batch_decode(output_ids, skip_special_tokens=False),
         special_tokens
     )
     return generated_recipe
