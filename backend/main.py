@@ -30,3 +30,8 @@ def generate_recipe(text):
 def generate(req: RecipeRequest):
     result = generate_recipe(req.ingredients)
     return {"recipe": result}
+
+@app.get("/")
+def read_root():
+    return {"message": "Welcome to the Smart Recipe Generator API! Use POST /generate to generate recipes."}
+
