@@ -2,6 +2,8 @@ import { useState } from 'react'
 import reactLogo from './assets/react.svg'
 import viteLogo from '/vite.svg'
 import './App.css'
+import RecipeGenerator from './RecipeGenerator';
+
 
 function App() {
   const [count, setCount] = useState(0)
@@ -24,6 +26,11 @@ function App() {
         <p>
           Edit <code>src/App.jsx</code> and save to test HMR
         </p>
+
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+      <RecipeGenerator />
+    </div>
+
       </div>
       <p className="read-the-docs">
         Click on the Vite and React logos to learn more
@@ -32,4 +39,4 @@ function App() {
   )
 }
 
-export default App
+
