@@ -15,7 +15,15 @@ const RecipeGenerator = () => {
     setLoading(true);
     setError("");
     try {
-      const response = await axios.post('http://127.0.0.1:8000/generate', { ingredients });
+      const response = await axios.post(
+        'http://localhost:8000/generate',
+        { ingredients },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      );
       setRecipe(response.data.recipe);
     } catch (err) {
       console.error(err);
@@ -23,6 +31,7 @@ const RecipeGenerator = () => {
     }
     setLoading(false);
   };
+
 
   return (
     <div className="p-6 max-w-2xl mx-auto text-center">
@@ -42,7 +51,7 @@ const RecipeGenerator = () => {
       </button>
       {error && <p className="text-red-500 mt-4">{error}</p>}
       {recipe && (
-        <div className="mt-6 p-4 border rounded bg-gray-100 text-left">
+        <div className="mt-6 p-4 border rounded bg-black text-left">
           <h2 className="text-xl font-bold mb-2">Generated Recipe:</h2>
           <pre className="whitespace-pre-wrap">{recipe}</pre>
         </div>
