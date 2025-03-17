@@ -1,6 +1,4 @@
-Thank you for sharing these files! Here's a breakdown of what each file is doing and its objective in relation to your **Machine Learning course project (Smart Recipe Generator)**:
 
----
 
 ### **1. `recipegenerator.py`**
 **Objective:**  
@@ -67,3 +65,13 @@ Most likely an **interactive or application-facing notebook** to prototype the *
 | `RecipeGeneratorApp.ipynb`  | Prototype of the final smart recipe generator app interface.    |
 
 ---
+
+
+backend:
+.\venv\Scripts\activate
+uvicorn main:app --reload
+
+
+frontend:
+npm i (<- if line below does not work)
+npm run dev
