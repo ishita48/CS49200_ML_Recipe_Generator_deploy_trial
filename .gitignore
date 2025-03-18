@@ -21,4 +21,8 @@ dist-ssr
 *.ntvs*
 *.njsproj
 *.sln
+*.pt
+*.t7
+compressed_models/
+large_models/
 *.sw?
