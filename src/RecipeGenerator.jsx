@@ -70,7 +70,6 @@ const RecipeGenerator = () => {
 
   return (
     <div className="generator-container">
-      <h1>Smart Recipe Generator</h1>
 
       {/* Image Upload */}
       <input type="file" accept="image/*" onChange={(e) => handleImageUpload(e.target.files[0])} className="file-upload" />
