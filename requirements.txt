@@ -6,4 +6,3 @@ opencv-python
 ultralytics
 pillow
 python-multipart
-os
