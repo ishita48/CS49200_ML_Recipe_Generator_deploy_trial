@@ -1,9 +1,9 @@
 
 services:
   - type: web
-    name: smart-recipe-backend
+    name: CS49200_ML_Recipe_Generator
     env: python
-    rootDir: backend
+    rootDir: ./backend
     buildCommand: "pip install -r requirements.txt"
     startCommand: "uvicorn main:app --host 0.0.0.0 --port 10000"
     plan: starter
