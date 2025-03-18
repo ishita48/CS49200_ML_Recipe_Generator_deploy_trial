@@ -26,3 +26,7 @@ dist-ssr
 compressed_models/
 large_models/
 *.sw?
+*.pt
+*.t7
+compressed_models/
+large_models/

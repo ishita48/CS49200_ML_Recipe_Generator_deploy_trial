@@ -10,10 +10,15 @@ const RecipeGenerator = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [detectedIngredients, setDetectedIngredients] = useState([]);
-  const [image, setImage] = useState(null); // To store uploaded image
+  const [image, setImage] = useState(null);
+  const [imageURL, setImageURL] = useState(null);
+  const [boundingBoxes, setBoundingBoxes] = useState([]);
+  const [showLowConfidence, setShowLowConfidence] = useState(true);
 
-  // Function to handle image upload and send to backend
+
+  // Handle image upload
   const handleImageUpload = async (file) => {
+    setImage(URL.createObjectURL(file)); // Display uploaded image
     const formData = new FormData();
     formData.append('file', file);
 
@@ -21,16 +26,24 @@ const RecipeGenerator = () => {
       const response = await axios.post('http://localhost:8000/detect-ingredients', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
-      console.log(response.data.ingredients);
-      setDetectedIngredients(response.data.ingredients.map(item => item.class_name));
-      setIngredients(response.data.ingredients.map(item => item.class_name).join(', ')); // Auto-fill ingredients
+
+      console.log("Detected Ingredients:", response.data.ingredients);
+      setDetectedIngredients(response.data.ingredients);
+      setBoundingBoxes(response.data.ingredients.map(item => ({
+        ...item,
+        color: item.confidence > 0.5 ? 'green' : 'red' // Color high-confidence green, low red
+      })));
+
+      setImageURL(`http://localhost:8000${response.data.output_image_url}`); // Show modified image
+      setIngredients(response.data.ingredients.map(item => item.class_name).join(', ')); 
+
     } catch (err) {
       console.error("Image recognition failed", err);
       setError("Failed to detect ingredients from image.");
     }
   };
 
-  // Recipe generation function
+  // Handle recipe generation
   const handleGenerate = async () => {
     if (!ingredients.trim()) {
       setError("Please enter some ingredients.");
@@ -38,6 +51,7 @@ const RecipeGenerator = () => {
     }
     setLoading(true);
     setError("");
+
     try {
       const response = await axios.post('http://localhost:8000/generate', {
         ingredients,
@@ -45,7 +59,8 @@ const RecipeGenerator = () => {
         cuisine,
         max_time: maxTime
       });
-      setRecipe(response.data.recipe);
+
+      setRecipe(response.data.ai_recipe);
     } catch (err) {
       console.error(err);
       setError("Failed to generate recipe. Please try again.");
@@ -55,16 +70,54 @@ const RecipeGenerator = () => {
 
   return (
     <div className="generator-container">
+      <h1>Smart Recipe Generator</h1>
 
-      {/* Image Upload Section */}
-      <input type="file" accept="image/*" onChange={(e) => handleImageUpload(e.target.files[0])} className="textarea" />
-      {detectedIngredients.length > 0 && (
-        <div>
-          <p>Detected Ingredients: {detectedIngredients.join(', ')}</p>
+      {/* Image Upload */}
+      <input type="file" accept="image/*" onChange={(e) => handleImageUpload(e.target.files[0])} className="file-upload" />
+      
+      {/* Image Preview */}
+      {image && (
+        <div className="image-container">
+          <img src={imageURL || image} alt="Uploaded" className="uploaded-image" />
+          {/* Bounding Boxes */}
+          {boundingBoxes
+            .filter(item => showLowConfidence || item.confidence > 0.5)
+            .map((box, index) => (
+              <div
+                key={index}
+                className="bounding-box"
+                style={{
+                  borderColor: box.color,
+                  top: `${box.bbox[1]}px`,
+                  left: `${box.bbox[0]}px`,
+                  width: `${box.bbox[2] - box.bbox[0]}px`,
+                  height: `${box.bbox[3] - box.bbox[1]}px`
+                }}
+              >
+                {box.class_name} ({(box.confidence * 100).toFixed(1)}%)
+              </div>
+          ))}
         </div>
       )}
 
-      {/* Ingredients Text Input (editable) */}
+      {/* Detected Ingredients List */}
+      {detectedIngredients.length > 0 && (
+        <div className="detected-container">
+          <h3>Detected Ingredients:</h3>
+          <ul>
+            {detectedIngredients.map((item, index) => (
+              <li key={index} style={{ color: item.confidence > 0.5 ? 'green' : 'red' }}>
+                {item.class_name} ({(item.confidence * 100).toFixed(1)}%)
+              </li>
+            ))}
+          </ul>
+          <button className="toggle-button" onClick={() => setShowLowConfidence(!showLowConfidence)}>
+            {showLowConfidence ? "Hide Low Confidence" : "Show All"}
+          </button>
+        </div>
+      )}
+
+      {/* Ingredients Input */}
       <textarea
         rows="4"
         value={ingredients}
@@ -72,28 +125,15 @@ const RecipeGenerator = () => {
         placeholder="List ingredients here, e.g., chicken, rice, onion..."
         className="textarea"
       />
-      <input
-        type="text"
-        value={allergies}
-        onChange={(e) => setAllergies(e.target.value)}
-        placeholder="Allergies (optional)..."
-        className="textarea"
-      />
+
+      <input type="text" value={allergies} onChange={(e) => setAllergies(e.target.value)} placeholder="Allergies (optional)..." className="textarea" />
       <select value={cuisine} onChange={(e) => setCuisine(e.target.value)} className="textarea">
         <option value="Any">Any</option>
         <option value="Indian">Indian</option>
         <option value="Italian">Italian</option>
         <option value="Mexican">Mexican</option>
       </select>
-      <input
-        type="number"
-        value={maxTime}
-        onChange={(e) => setMaxTime(e.target.value)}
-        min="10"
-        max="120"
-        className="textarea"
-        placeholder="Max Cooking Time (minutes)"
-      />
+      <input type="number" value={maxTime} onChange={(e) => setMaxTime(e.target.value)} min="10" max="120" className="textarea" placeholder="Max Cooking Time (minutes)" />
 
       {/* Generate Button */}
       <button onClick={handleGenerate} className="button">

@@ -130,7 +130,7 @@ h1 {
   box-shadow: 0 0 8px rgba(255, 140, 66, 0.5);
 }
 
-/* Button */
+
 .button {
   padding: 15px 30px;
   background: linear-gradient(135deg, #ff8c42, #ff4e50);
@@ -148,17 +148,7 @@ h1 {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
-/* Detected Ingredients */
-.detected-ingredients {
-  background: rgba(255, 140, 66, 0.1);
-  padding: 10px;
-  border-radius: 10px;
-  margin: 15px 0;
-  font-style: italic;
-  color: #444;
-}
 
-/* Recipe Card */
 .recipe-box {
   background: white;
   padding: 24px;
@@ -175,17 +165,69 @@ h1 {
   position: relative;
 }
 
-/* Error message */
+
 .error-message {
   color: red;
   margin: 12px 0;
   font-weight: bold;
 }
 
-/* Optional Image Preview */
 img {
   max-width: 100%;
   border-radius: 12px;
   margin: 10px 0;
   box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+}
+
+
+.spoonacular-recipes {
+  margin-top: 20px;
+  text-align: left;
+}
+
+.spoonacular-recipes ul {
+  list-style-type: disc;
+  padding-left: 20px;
+}
+
+.detected-image {
+  margin: 20px auto;
+  border-radius: 16px;
+  max-width: 100%;
+}
+
+.recipe-box pre {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+
+.image-container {
+  position: relative;
+  display: inline-block;
+}
+
+.uploaded-image {
+  max-width: 100%;
+  display: block;
+}
+
+.bounding-box {
+  position: absolute;
+  border: 2px solid red;
+  background: rgba(255, 0, 0, 0.2);
+  color: white;
+  font-size: 14px;
+  padding: 2px;
+  font-weight: bold;
+}
+
+.detected-container {
+  background: rgba(255, 140, 66, 0.1);
+  padding: 10px;
+  border-radius: 10px;
+  margin: 15px 0;
+  font-style: italic;
+  color: #444;
 }
