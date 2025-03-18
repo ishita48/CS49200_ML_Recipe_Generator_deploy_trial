@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import axios from 'axios';
 
 const RecipeGenerator = () => {
@@ -7,17 +7,18 @@ const RecipeGenerator = () => {
   const [cuisine, setCuisine] = useState("Any");
   const [maxTime, setMaxTime] = useState(60);
   const [recipe, setRecipe] = useState("");
-  const [spoonacularRecipes, setSpoonacularRecipes] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [detectedIngredients, setDetectedIngredients] = useState([]);
-  const [outputImageUrl, setOutputImageUrl] = useState(null);
-  const canvasRef = useRef(null);
-  const confidenceThreshold = 0.5;
+  const [image, setImage] = useState(null);
+  const [imageURL, setImageURL] = useState(null);
+  const [boundingBoxes, setBoundingBoxes] = useState([]);
+  const [showLowConfidence, setShowLowConfidence] = useState(true);
 
-  const filteredIngredients = detectedIngredients.filter(item => item.confidence >= confidenceThreshold);
 
+  // Handle image upload
   const handleImageUpload = async (file) => {
+    setImage(URL.createObjectURL(file)); // Display uploaded image
     const formData = new FormData();
     formData.append('file', file);
 
@@ -25,20 +26,32 @@ const RecipeGenerator = () => {
       const response = await axios.post('http://localhost:8000/detect-ingredients', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
+
+      console.log("Detected Ingredients:", response.data.ingredients);
       setDetectedIngredients(response.data.ingredients);
-      setIngredients(response.data.ingredients.map(item => item.class_name).join(', '));
-      setOutputImageUrl('http://localhost:8000' + response.data.output_image_url);
+      setBoundingBoxes(response.data.ingredients.map(item => ({
+        ...item,
+        color: item.confidence > 0.5 ? 'green' : 'red' // Color high-confidence green, low red
+      })));
+
+      setImageURL(`http://localhost:8000${response.data.output_image_url}`); // Show modified image
+      setIngredients(response.data.ingredients.map(item => item.class_name).join(', ')); 
+
     } catch (err) {
-      setError("Failed to detect ingredients.");
+      console.error("Image recognition failed", err);
+      setError("Failed to detect ingredients from image.");
     }
   };
 
+  // Handle recipe generation
   const handleGenerate = async () => {
     if (!ingredients.trim()) {
-      setError("Please enter ingredients.");
+      setError("Please enter some ingredients.");
       return;
     }
     setLoading(true);
+    setError("");
+
     try {
       const response = await axios.post('http://localhost:8000/generate', {
         ingredients,
@@ -46,67 +59,74 @@ const RecipeGenerator = () => {
         cuisine,
         max_time: maxTime
       });
+
       setRecipe(response.data.ai_recipe);
-      setSpoonacularRecipes(response.data.spoonacular_recipes);
-    } catch {
-      setError("Failed to generate recipe.");
+    } catch (err) {
+      console.error(err);
+      setError("Failed to generate recipe. Please try again.");
     }
     setLoading(false);
   };
 
-  useEffect(() => {
-    if (!outputImageUrl || filteredIngredients.length === 0) return;
-
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    const image = new Image();
-
-    image.onload = () => {
-      canvas.width = image.width;
-      canvas.height = image.height;
-      ctx.drawImage(image, 0, 0);
-      filteredIngredients.forEach(item => {
-        const [x1, y1, x2, y2] = item.bbox;
-        ctx.strokeStyle = 'red';
-        ctx.lineWidth = 3;
-        ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
-        ctx.font = "18px Arial";
-        ctx.fillStyle = "red";
-        ctx.fillText(`${item.class_name} (${Math.round(item.confidence * 100)}%)`, x1, y1 > 20 ? y1 - 5 : y1 + 20);
-      });
-    };
-
-    image.src = outputImageUrl;
-  }, [outputImageUrl, filteredIngredients]);
-
   return (
     <div className="generator-container">
+      <h1>Smart Recipe Generator</h1>
+
+      {/* Image Upload */}
+      <input type="file" accept="image/*" onChange={(e) => handleImageUpload(e.target.files[0])} className="file-upload" />
       
-
-      <input type="file" accept="image/*" onChange={(e) => handleImageUpload(e.target.files[0])} className="textarea" />
-
-      {/*Detected Image with Boxes*/}
-      {outputImageUrl && (
-        <div style={{ position: 'relative', display: 'inline-block', maxWidth: '100%' }}>
-          <canvas ref={canvasRef} style={{ maxWidth: '100%', borderRadius: '16px' }} />
+      {/* Image Preview */}
+      {image && (
+        <div className="image-container">
+          <img src={imageURL || image} alt="Uploaded" className="uploaded-image" />
+          {/* Bounding Boxes */}
+          {boundingBoxes
+            .filter(item => showLowConfidence || item.confidence > 0.5)
+            .map((box, index) => (
+              <div
+                key={index}
+                className="bounding-box"
+                style={{
+                  borderColor: box.color,
+                  top: `${box.bbox[1]}px`,
+                  left: `${box.bbox[0]}px`,
+                  width: `${box.bbox[2] - box.bbox[0]}px`,
+                  height: `${box.bbox[3] - box.bbox[1]}px`
+                }}
+              >
+                {box.class_name} ({(box.confidence * 100).toFixed(1)}%)
+              </div>
+          ))}
         </div>
       )}
 
-      {/*Filtered Ingredients*/}
-      {filteredIngredients.length > 0 && (
-        <div className="detected-ingredients">
-          <p><strong>Detected (Filtered):</strong></p>
+      {/* Detected Ingredients List */}
+      {detectedIngredients.length > 0 && (
+        <div className="detected-container">
+          <h3>Detected Ingredients:</h3>
           <ul>
-            {filteredIngredients.map((item, idx) => (
-              <li key={idx}>{item.class_name} ({(item.confidence * 100).toFixed(1)}%)</li>
+            {detectedIngredients.map((item, index) => (
+              <li key={index} style={{ color: item.confidence > 0.5 ? 'green' : 'red' }}>
+                {item.class_name} ({(item.confidence * 100).toFixed(1)}%)
+              </li>
             ))}
           </ul>
+          <button className="toggle-button" onClick={() => setShowLowConfidence(!showLowConfidence)}>
+            {showLowConfidence ? "Hide Low Confidence" : "Show All"}
+          </button>
         </div>
       )}
 
-      {/* Manual Inputs */}
-      <textarea value={ingredients} onChange={(e) => setIngredients(e.target.value)} placeholder="Ingredients..." className="textarea" />
-      <input type="text" value={allergies} onChange={(e) => setAllergies(e.target.value)} placeholder="Allergies (optional)" className="textarea" />
+      {/* Ingredients Input */}
+      <textarea
+        rows="4"
+        value={ingredients}
+        onChange={(e) => setIngredients(e.target.value)}
+        placeholder="List ingredients here, e.g., chicken, rice, onion..."
+        className="textarea"
+      />
+
+      <input type="text" value={allergies} onChange={(e) => setAllergies(e.target.value)} placeholder="Allergies (optional)..." className="textarea" />
       <select value={cuisine} onChange={(e) => setCuisine(e.target.value)} className="textarea">
         <option value="Any">Any</option>
         <option value="Indian">Indian</option>
@@ -115,22 +135,19 @@ const RecipeGenerator = () => {
       </select>
       <input type="number" value={maxTime} onChange={(e) => setMaxTime(e.target.value)} min="10" max="120" className="textarea" placeholder="Max Cooking Time (minutes)" />
 
-     
+      {/* Generate Button */}
       <button onClick={handleGenerate} className="button">
         {loading ? "Generating..." : "Generate Recipe"}
       </button>
 
-
+      {/* Error Message */}
       {error && <p className="error-message">{error}</p>}
 
-
-      {recipe && <div className="recipe-box"><h3>Generated Recipe</h3><pre>{recipe}</pre></div>}
-
-      {/* Spoonacular Recipes */}
-      {spoonacularRecipes.length > 0 && (
-        <div className="recipe-box spoonacular-recipes">
-          <h3>Spoonacular Recipes</h3>
-          <ul>{spoonacularRecipes.map((rec, idx) => <li key={idx}><a href={`https://spoonacular.com/recipes/${rec.title.replace(/ /g, "-")}-${rec.id}`} target="_blank" rel="noopener noreferrer">{rec.title}</a></li>)}</ul>
+      {/* Recipe Result */}
+      {recipe && (
+        <div className="recipe-box">
+          <h2>Generated Recipe:</h2>
+          <pre>{recipe}</pre>
         </div>
       )}
     </div>

@@ -149,16 +149,6 @@ h1 {
 }
 
 
-.detected-ingredients {
-  background: rgba(255, 140, 66, 0.1);
-  padding: 10px;
-  border-radius: 10px;
-  margin: 15px 0;
-  font-style: italic;
-  color: #444;
-}
-
-
 .recipe-box {
   background: white;
   padding: 24px;
@@ -200,16 +190,44 @@ img {
   padding-left: 20px;
 }
 
-/* Image Display */
 .detected-image {
   margin: 20px auto;
   border-radius: 16px;
   max-width: 100%;
 }
 
-
 .recipe-box pre {
   white-space: pre-wrap;
   word-wrap: break-word;
   overflow-wrap: break-word;
+}
+
+
+.image-container {
+  position: relative;
+  display: inline-block;
+}
+
+.uploaded-image {
+  max-width: 100%;
+  display: block;
+}
+
+.bounding-box {
+  position: absolute;
+  border: 2px solid red;
+  background: rgba(255, 0, 0, 0.2);
+  color: white;
+  font-size: 14px;
+  padding: 2px;
+  font-weight: bold;
+}
+
+.detected-container {
+  background: rgba(255, 140, 66, 0.1);
+  padding: 10px;
+  border-radius: 10px;
+  margin: 15px 0;
+  font-style: italic;
+  color: #444;
 }
