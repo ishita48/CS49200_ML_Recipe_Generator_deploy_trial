@@ -91,9 +91,34 @@ def generate(req: RecipeRequest):
     ingredients_list = [item.strip().lower() for item in req.ingredients.split(',') if item.strip()]
     allergies = req.allergies.strip().lower() if req.allergies else ""
     final_prompt = build_prompt(ingredients_list, req.cuisine, allergies, req.max_time)
-    recipe_output = generate_recipe(final_prompt)
-    recipes = [] if recipe_output.strip() else get_spoonacular_recipes(ingredients_list)
-    return {"ai_recipe": recipe_output, "spoonacular_recipes": recipes}
+    # code changed here
+    recipe_output = []
+    generated = generate_recipe(final_prompt)
+    for i in range(5):
+        for text in generated:
+            sections = text.split("\n")
+            headline = ""
+            for section in sections:
+                section = section.strip()
+                if section.startswith("title:"):
+                    section = section.replace("title:", "")
+                    headline = "TITLE"
+                elif section.startswith("ingredients:"):
+                    section = section.replace("ingredients:", "")
+                    headline = "INGREDIENTS"
+                elif section.startswith("directions:"):
+                    section = section.replace("directions:", "")
+                    headline = "DIRECTIONS"
+                if headline == "TITLE":
+                    print(f"[{headline}]: {section.strip().capitalize()}")
+                else:
+                    section_info = [f"  - {i+1}: {info.strip().capitalize()}" for i, info in enumerate(section.split("--"))]
+                    print(f"[{headline}]:")
+                    print("\n".join(section_info))
+
+            print("-" * 130)
+    # recipes = [] if recipe_output.strip() else get_spoonacular_recipes(ingredients_list)
+    # return {"ai_recipe": recipe_output, "spoonacular_recipes": recipes}
 
 @app.post("/detect-ingredients")
 async def detect(file: UploadFile = File(...)):
