@@ -46,6 +46,18 @@ const RecipeGenerator = () => {
     }
   };
 
+  // Function to ensure image is loaded with correct dimensions
+  const handleImageLoad = (e) => {
+    // Force a re-render when the image is loaded to ensure bounding boxes align correctly
+    if (e.target.complete) {
+      // Apply a small timeout to ensure the image has fully rendered
+      setTimeout(() => {
+        const newUrl = imageURL + '?' + new Date().getTime();
+        setImageURL(newUrl);
+      }, 100);
+    }
+  };
+
   // Handle recipe generation
   const handleGenerate = async () => {
     if (!ingredients.trim()) {
@@ -100,7 +112,18 @@ const RecipeGenerator = () => {
       {/* Image Preview */}
       {image && (
         <div className="image-container">
-          <img src={imageURL || image} alt="Uploaded ingredients" className="uploaded-image" />
+          <img 
+            src={imageURL || image} 
+            alt="Uploaded ingredients" 
+            className="uploaded-image" 
+            onLoad={handleImageLoad}
+            style={{ 
+              width: '100%', 
+              height: 'auto', 
+              objectFit: 'contain',
+              maxHeight: '500px'
+            }}
+          />
         </div>
       )}
 
