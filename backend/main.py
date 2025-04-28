@@ -55,10 +55,10 @@ def target_postprocessing(texts, special_tokens):
     return new_texts
 
 def build_prompt(ingredients, cuisine=None, allergies=None, max_time=None):
-    prompt = "items: " + ", ".join(ingredients)
+    prompt =  "Avoid using personal statements and be very specific with directions" + "items: " + ", ".join(ingredients)
     if cuisine and cuisine.lower() != "any":
         prompt += f" | cuisine: {cuisine}"
-    if allergies:
+    if allergies: 
         prompt += f" | avoid: {allergies}"
     if max_time:
         prompt += f" | max_time: {max_time} mins"
@@ -68,7 +68,7 @@ def generate_recipe(text):
     inputs = tokenizer(text, return_tensors="pt", padding=True, truncation=True)
     output_ids = model.generate(
         input_ids=inputs.input_ids,
-        max_length=512,
+        max_length=1000,
         min_length=64,
         no_repeat_ngram_size=3,
         do_sample=True,
