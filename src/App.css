@@ -231,3 +231,77 @@ img {
   font-style: italic;
   color: #444;
 }
+
+.upload-section {
+  background: rgba(255, 140, 66, 0.05);
+  padding: 20px;
+  border-radius: 15px;
+  margin-bottom: 25px;
+  text-align: center;
+}
+
+.upload-section h3 {
+  margin-top: 0;
+  color: #ff8c42;
+}
+
+.upload-section p {
+  margin-bottom: 15px;
+  font-size: 0.9em;
+  color: #666;
+}
+
+.file-upload {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 20px;
+  margin: 15px 0;
+  background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+  border: 2px dashed #ff8c42;
+  border-radius: 12px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-weight: bold;
+  position: relative;
+}
+
+.file-upload:hover {
+  background: linear-gradient(135deg, #e9ecef, #dee2e6);
+  border-color: #ff4e50;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.file-upload.loading {
+  background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+  border-color: #6c757d;
+  animation: pulse 1.5s infinite;
+  cursor: wait;
+}
+
+.file-upload.loading:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.file-upload span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}

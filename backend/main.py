@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -8,6 +8,15 @@ import requests
 import os
 import shutil
 import cv2
+import dotenv
+import logging
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Load environment variables
+dotenv.load_dotenv()
 
 MODEL_NAME_OR_PATH = "flax-community/t5-recipe-generation"
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME_OR_PATH)
@@ -97,30 +106,42 @@ def generate(req: RecipeRequest):
 
 @app.post("/detect-ingredients")
 async def detect(file: UploadFile = File(...)):
-    os.makedirs(STATIC_DIR, exist_ok=True)
-
-   
-    temp_path = os.path.join(STATIC_DIR, f"output_{file.filename}")
-    with open(temp_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-
-    print(f"[INFO] Image successfully saved at: {temp_path}")
-
-   
-    placeholder_path = os.path.join(STATIC_DIR, "placeholder.jpg")
-    if not os.path.exists(placeholder_path):
-        print("[WARNING] Placeholder image not found. Creating a blank one.")
-        blank_placeholder = 255 * (cv2.imread(temp_path) * 0)  # Create blank white placeholder
-        cv2.imwrite(placeholder_path, blank_placeholder)
-
-    # ✅ Detect ingredients
-    detected_items = detect_ingredients(temp_path)
-    filtered_items = [item for item in detected_items if item['confidence'] >= 0.5]
-
-    # ✅ Substitute objects in saved image
-    substitute_objects(temp_path, filtered_items, temp_path, placeholder_path)
-
-    return {
-        "ingredients": filtered_items,
-        "output_image_url": f"/static/output_{file.filename}"
-    }
+    """
+    Endpoint to detect ingredients in an uploaded image using ChatGPT Vision API
+    """
+    try:
+        # Ensure static directory exists
+        os.makedirs(STATIC_DIR, exist_ok=True)
+        
+        # Save the uploaded file
+        temp_path = os.path.join(STATIC_DIR, f"output_{file.filename}")
+        with open(temp_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        
+        logger.info(f"Image successfully saved at: {temp_path}")
+        
+        # Ensure placeholder exists
+        placeholder_path = os.path.join(STATIC_DIR, "placeholder.jpg")
+        if not os.path.exists(placeholder_path):
+            logger.warning("Placeholder image not found. Creating a blank one.")
+            blank_placeholder = 255 * (cv2.imread(temp_path) * 0)  # Create blank white placeholder
+            cv2.imwrite(placeholder_path, blank_placeholder)
+        
+        # Detect ingredients using ChatGPT Vision API
+        detected_items = detect_ingredients(temp_path)
+        
+        # No need to filter by confidence as ChatGPT already provides high-quality detections
+        # But we'll keep the structure for compatibility
+        filtered_items = detected_items
+        
+        # Highlight detected ingredients in the image
+        substitute_objects(temp_path, filtered_items, temp_path, placeholder_path)
+        
+        return {
+            "ingredients": filtered_items,
+            "output_image_url": f"/static/output_{file.filename}"
+        }
+    
+    except Exception as e:
+        logger.error(f"Error processing image: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error processing image: {str(e)}")
