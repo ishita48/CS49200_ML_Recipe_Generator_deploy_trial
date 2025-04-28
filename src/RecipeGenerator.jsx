@@ -99,7 +99,7 @@ const RecipeGenerator = () => {
 
       {/* Image Upload */}
       <div className="upload-section">
-        <h2>Step 1: Upload an image of your ingredients (optional)</h2>
+        <h2>Upload an image of your ingredients (optional)</h2>
         <input 
           type="file" 
           accept="image/*" 
@@ -150,7 +150,7 @@ const RecipeGenerator = () => {
       )}
 
       <div className="input-section">
-        <h2>Step 2: Enter or edit ingredients and preferences</h2>
+        <h2>Enter or edit ingredients and preferences</h2>
         
         {/* Ingredients Input */}
         <label htmlFor="ingredients">Ingredients:</label>
