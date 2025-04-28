@@ -7,18 +7,20 @@ const RecipeGenerator = () => {
   const [cuisine, setCuisine] = useState("Any");
   const [maxTime, setMaxTime] = useState(60);
   const [recipe, setRecipe] = useState("");
+  const [spoonacularRecipes, setSpoonacularRecipes] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [detectedIngredients, setDetectedIngredients] = useState([]);
   const [image, setImage] = useState(null);
   const [imageURL, setImageURL] = useState(null);
-  const [boundingBoxes, setBoundingBoxes] = useState([]);
   const [showLowConfidence, setShowLowConfidence] = useState(true);
 
 
   // Handle image upload
   const handleImageUpload = async (file) => {
     setImage(URL.createObjectURL(file)); // Display uploaded image
+    setLoading(true);
+    setError("");
     const formData = new FormData();
     formData.append('file', file);
 
@@ -29,17 +31,18 @@ const RecipeGenerator = () => {
 
       console.log("Detected Ingredients:", response.data.ingredients);
       setDetectedIngredients(response.data.ingredients);
-      setBoundingBoxes(response.data.ingredients.map(item => ({
-        ...item,
-        color: item.confidence > 0.5 ? 'green' : 'red' // Color high-confidence green, low red
-      })));
-
-      setImageURL(`http://localhost:8000${response.data.output_image_url}`); // Show modified image
+      
+      // Set the image URL to the processed image from the backend
+      setImageURL(`http://localhost:8000${response.data.output_image_url}`);
+      
+      // Update ingredients input with detected ingredients
       setIngredients(response.data.ingredients.map(item => item.class_name).join(', ')); 
 
     } catch (err) {
       console.error("Image recognition failed", err);
-      setError("Failed to detect ingredients from image.");
+      setError("Failed to detect ingredients from image: " + (err.response?.data?.detail || err.message));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -51,6 +54,8 @@ const RecipeGenerator = () => {
     }
     setLoading(true);
     setError("");
+    setRecipe("");
+    setSpoonacularRecipes([]);
 
     try {
       const response = await axios.post('http://localhost:8000/generate', {
@@ -60,42 +65,42 @@ const RecipeGenerator = () => {
         max_time: maxTime
       });
 
+      // Set AI-generated recipe
       setRecipe(response.data.ai_recipe);
+      
+      // Set Spoonacular recipes if available
+      if (response.data.spoonacular_recipes && response.data.spoonacular_recipes.length > 0) {
+        setSpoonacularRecipes(response.data.spoonacular_recipes);
+      }
     } catch (err) {
       console.error(err);
-      setError("Failed to generate recipe. Please try again.");
+      setError("Failed to generate recipe: " + (err.response?.data?.detail || err.message));
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
     <div className="generator-container">
+      <h1>AI Recipe Generator</h1>
+      <p>Upload a food image or enter ingredients manually to generate recipes</p>
 
       {/* Image Upload */}
-      <input type="file" accept="image/*" onChange={(e) => handleImageUpload(e.target.files[0])} className="file-upload" />
+      <div className="upload-section">
+        <h2>Step 1: Upload an image of your ingredients (optional)</h2>
+        <input 
+          type="file" 
+          accept="image/*" 
+          onChange={(e) => e.target.files[0] && handleImageUpload(e.target.files[0])} 
+          className="file-upload" 
+          disabled={loading}
+        />
+      </div>
       
       {/* Image Preview */}
       {image && (
         <div className="image-container">
-          <img src={imageURL || image} alt="Uploaded" className="uploaded-image" />
-          {/* Bounding Boxes */}
-          {boundingBoxes
-            .filter(item => showLowConfidence || item.confidence > 0.5)
-            .map((box, index) => (
-              <div
-                key={index}
-                className="bounding-box"
-                style={{
-                  borderColor: box.color,
-                  top: `${box.bbox[1]}px`,
-                  left: `${box.bbox[0]}px`,
-                  width: `${box.bbox[2] - box.bbox[0]}px`,
-                  height: `${box.bbox[3] - box.bbox[1]}px`
-                }}
-              >
-                {box.class_name} ({(box.confidence * 100).toFixed(1)}%)
-              </div>
-          ))}
+          <img src={imageURL || image} alt="Uploaded ingredients" className="uploaded-image" />
         </div>
       )}
 
@@ -103,50 +108,135 @@ const RecipeGenerator = () => {
       {detectedIngredients.length > 0 && (
         <div className="detected-container">
           <h3>Detected Ingredients:</h3>
-          <ul>
-            {detectedIngredients.map((item, index) => (
-              <li key={index} style={{ color: item.confidence > 0.5 ? 'green' : 'red' }}>
-                {item.class_name} ({(item.confidence * 100).toFixed(1)}%)
-              </li>
+          <ul className="ingredients-list">
+            {detectedIngredients
+              .filter(item => showLowConfidence || item.confidence > 0.5)
+              .map((item, index) => (
+                <li key={index} style={{ color: item.confidence > 0.5 ? 'green' : 'red' }}>
+                  {item.class_name} ({(item.confidence * 100).toFixed(1)}%)
+                </li>
             ))}
           </ul>
-          <button className="toggle-button" onClick={() => setShowLowConfidence(!showLowConfidence)}>
+          <button 
+            className="toggle-button" 
+            onClick={() => setShowLowConfidence(!showLowConfidence)}
+          >
             {showLowConfidence ? "Hide Low Confidence" : "Show All"}
           </button>
         </div>
       )}
 
-      {/* Ingredients Input */}
-      <textarea
-        rows="4"
-        value={ingredients}
-        onChange={(e) => setIngredients(e.target.value)}
-        placeholder="List ingredients here, e.g., chicken, rice, onion..."
-        className="textarea"
-      />
+      <div className="input-section">
+        <h2>Step 2: Enter or edit ingredients and preferences</h2>
+        
+        {/* Ingredients Input */}
+        <label htmlFor="ingredients">Ingredients:</label>
+        <textarea
+          id="ingredients"
+          rows="4"
+          value={ingredients}
+          onChange={(e) => setIngredients(e.target.value)}
+          placeholder="List ingredients here, e.g., chicken, rice, onion..."
+          className="textarea"
+          disabled={loading}
+        />
 
-      <input type="text" value={allergies} onChange={(e) => setAllergies(e.target.value)} placeholder="Allergies (optional)..." className="textarea" />
-      <select value={cuisine} onChange={(e) => setCuisine(e.target.value)} className="textarea">
-        <option value="Any">Any</option>
-        <option value="Indian">Indian</option>
-        <option value="Italian">Italian</option>
-        <option value="Mexican">Mexican</option>
-      </select>
-      <input type="number" value={maxTime} onChange={(e) => setMaxTime(e.target.value)} min="10" max="120" className="textarea" placeholder="Max Cooking Time (minutes)" />
+        <label htmlFor="allergies">Allergies (optional):</label>
+        <input 
+          id="allergies"
+          type="text" 
+          value={allergies} 
+          onChange={(e) => setAllergies(e.target.value)} 
+          placeholder="e.g., nuts, dairy, gluten..." 
+          className="textarea"
+          disabled={loading}
+        />
+        
+        <label htmlFor="cuisine">Cuisine Type:</label>
+        <select 
+          id="cuisine"
+          value={cuisine} 
+          onChange={(e) => setCuisine(e.target.value)} 
+          className="textarea"
+          disabled={loading}
+        >
+          <option value="Any">Any</option>
+          <option value="American">American</option>
+          <option value="Chinese">Chinese</option>
+          <option value="French">French</option>
+          <option value="Greek">Greek</option>
+          <option value="Indian">Indian</option>
+          <option value="Italian">Italian</option>
+          <option value="Japanese">Japanese</option>
+          <option value="Korean">Korean</option>
+          <option value="Mediterranean">Mediterranean</option>
+          <option value="Mexican">Mexican</option>
+          <option value="Middle Eastern">Middle Eastern</option>
+          <option value="Thai">Thai</option>
+          <option value="Vietnamese">Vietnamese</option>
+        </select>
+        
+        <label htmlFor="maxTime">Maximum Cooking Time (minutes):</label>
+        <input 
+          id="maxTime"
+          type="number" 
+          value={maxTime} 
+          onChange={(e) => setMaxTime(parseInt(e.target.value) || 60)} 
+          min="10" 
+          max="180" 
+          className="textarea"
+          disabled={loading}
+        />
+      </div>
 
       {/* Generate Button */}
-      <button onClick={handleGenerate} className="button">
-        {loading ? "Generating..." : "Generate Recipe"}
-      </button>
+      <div className="generate-section">
+        <h2>Step 3: Generate your recipe</h2>
+        <button 
+          onClick={handleGenerate} 
+          className="button"
+          disabled={loading || !ingredients.trim()}
+        >
+          {loading ? "Generating..." : "Generate Recipe"}
+        </button>
+      </div>
 
       {/* Error Message */}
       {error && <p className="error-message">{error}</p>}
 
-      {/* Recipe Result */}
+      {/* Recipe Results */}
       {recipe && (
-        <div className="recipe-box">
-          <h2>Generated Recipe:</h2>
-          <pre>{recipe}</pre>
+        <div className="results-section">
+          <div className="recipe-box">
+            <h2>AI-Generated Recipe:</h2>
+            <pre className="recipe-content">{recipe}</pre>
+          </div>
+          
+          {spoonacularRecipes.length > 0 && (
+            <div className="spoonacular-recipes">
+              <h2>Alternative Recipe Suggestions:</h2>
+              <div className="recipe-grid">
+                {spoonacularRecipes.map((recipe, index) => (
+                  <div key={index} className="recipe-card">
+                    <h3>{recipe.title}</h3>
+                    {recipe.image && (
+                      <img src={recipe.image} alt={recipe.title} className="recipe-image" />
+                    )}
+                    <p>Used ingredients: {recipe.usedIngredientCount}</p>
+                    <p>Missing ingredients: {recipe.missedIngredientCount}</p>
+                    <a 
+                      href={`https://spoonacular.com/recipes/${recipe.title.replace(/\s+/g, '-').toLowerCase()}-${recipe.id}`} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="view-recipe-btn"
+                    >
+                      View Full Recipe
+                    </a>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
