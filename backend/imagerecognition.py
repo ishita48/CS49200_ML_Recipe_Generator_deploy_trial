@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # OpenAI API configuration
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_API_KEY = os.getenv("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")
 OPENAI_API_URL = "https://api.openai.com/v1/chat/completions"
 
 def encode_image_to_base64(image_path):
