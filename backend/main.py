@@ -1,20 +1,37 @@
+# -*- coding: utf-8 -*-
+"""
+FastAPI Recipe Generation App
+
+- Generate recipes using a fine-tuned Hugging Face model (PyTorch).
+- Detect ingredients in images.
+- Fetch related recipes from Spoonacular API.
+"""
+
+# === Imports ===
+import os
+import shutil
+import requests
+import cv2
+
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
-from imagerecognition import detect_ingredients, substitute_objects
-import requests
-import os
-import shutil
-import cv2
 
+from imagerecognition import detect_ingredients, substitute_objects
+
+# === Model Setup ===
 MODEL_NAME_OR_PATH = "flax-community/t5-recipe-generation"
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME_OR_PATH)
 model = AutoModelForSeq2SeqLM.from_pretrained(MODEL_NAME_OR_PATH)
+
+# === API Key ===
 SPOONACULAR_API_KEY = "YOUR_SPOONACULAR_API_KEY"
 
+# === FastAPI Setup ===
 app = FastAPI()
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
@@ -23,29 +40,40 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# === Static Files Setup ===
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 os.makedirs(STATIC_DIR, exist_ok=True)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
-tokens_map = { "<sep>": "--", "<section>": "\n" }
+# === Special Tokens Mapping ===
+tokens_map = {
+    "<sep>": "--",
+    "<section>": "\n"
+}
 
-def skip_special_tokens(text, special_tokens):
+# === Helper Functions ===
+def remove_special_tokens(text: str, special_tokens: list) -> str:
+    """Remove special tokens from text."""
     for token in special_tokens:
         text = text.replace(token, "")
     return text
 
-def target_postprocessing(texts, special_tokens):
+def postprocess_generated_texts(texts, special_tokens) -> list:
+    """Postprocess generated texts: remove and replace special tokens."""
     if not isinstance(texts, list):
         texts = [texts]
-    new_texts = []
+
+    processed = []
     for text in texts:
-        text = skip_special_tokens(text, special_tokens)
+        text = remove_special_tokens(text, special_tokens)
         for k, v in tokens_map.items():
             text = text.replace(k, v)
-        new_texts.append(text)
-    return new_texts
+        processed.append(text)
 
-def build_prompt(ingredients, cuisine=None, allergies=None, max_time=None):
+    return processed
+
+def build_prompt(ingredients: list, cuisine: str = None, allergies: str = None, max_time: int = None) -> str:
+    """Build input prompt for recipe generation."""
     prompt = "items: " + ", ".join(ingredients)
     if cuisine and cuisine.lower() != "any":
         prompt += f" | cuisine: {cuisine}"
@@ -55,8 +83,9 @@ def build_prompt(ingredients, cuisine=None, allergies=None, max_time=None):
         prompt += f" | max_time: {max_time} mins"
     return prompt
 
-def generate_recipe(text):
-    inputs = tokenizer(text, return_tensors="pt", padding=True, truncation=True)
+def generate_recipe(prompt: str) -> str:
+    """Generate a recipe from the prompt."""
+    inputs = tokenizer(prompt, return_tensors="pt", padding=True, truncation=True)
     output_ids = model.generate(
         input_ids=inputs.input_ids,
         max_length=512,
@@ -64,88 +93,69 @@ def generate_recipe(text):
         no_repeat_ngram_size=3,
         do_sample=True,
         top_k=60,
-        top_p=0.95
+        top_p=0.95,
     )
     generated = tokenizer.batch_decode(output_ids, skip_special_tokens=False)
-    final_output = target_postprocessing(generated, tokenizer.all_special_tokens)
+    final_output = postprocess_generated_texts(generated, tokenizer.all_special_tokens)
     return final_output[0]
 
-def get_spoonacular_recipes(ingredients):
+def get_spoonacular_recipes(ingredients: list) -> list:
+    """Fetch alternative recipes from Spoonacular API."""
     url = "https://api.spoonacular.com/recipes/findByIngredients"
     params = {
         "ingredients": ",".join(ingredients),
         "number": 5,
-        "apiKey": SPOONACULAR_API_KEY
+        "apiKey": SPOONACULAR_API_KEY,
     }
     response = requests.get(url, params=params)
     return response.json() if response.status_code == 200 else []
 
+# === Request Models ===
 class RecipeRequest(BaseModel):
     ingredients: str
     allergies: str = ""
     cuisine: str = "Any"
     max_time: int = 60
 
+# === API Endpoints ===
 @app.post("/generate")
-def generate(req: RecipeRequest):
-    ingredients_list = [item.strip().lower() for item in req.ingredients.split(',') if item.strip()]
+def generate_recipe_api(req: RecipeRequest):
+    """Endpoint to generate a recipe."""
+    ingredients_list = [item.strip().lower() for item in req.ingredients.split(",") if item.strip()]
     allergies = req.allergies.strip().lower() if req.allergies else ""
-    final_prompt = build_prompt(ingredients_list, req.cuisine, allergies, req.max_time)
-    # code changed here
-    recipe_output = []
-    generated = generate_recipe(final_prompt)
-    for i in range(5):
-        for text in generated:
-            sections = text.split("\n")
-            headline = ""
-            for section in sections:
-                section = section.strip()
-                if section.startswith("title:"):
-                    section = section.replace("title:", "")
-                    headline = "TITLE"
-                elif section.startswith("ingredients:"):
-                    section = section.replace("ingredients:", "")
-                    headline = "INGREDIENTS"
-                elif section.startswith("directions:"):
-                    section = section.replace("directions:", "")
-                    headline = "DIRECTIONS"
-                if headline == "TITLE":
-                    print(f"[{headline}]: {section.strip().capitalize()}")
-                else:
-                    section_info = [f"  - {i+1}: {info.strip().capitalize()}" for i, info in enumerate(section.split("--"))]
-                    print(f"[{headline}]:")
-                    print("\n".join(section_info))
+    prompt = build_prompt(ingredients_list, req.cuisine, allergies, req.max_time)
 
-            print("-" * 130)
-    # recipes = [] if recipe_output.strip() else get_spoonacular_recipes(ingredients_list)
-    # return {"ai_recipe": recipe_output, "spoonacular_recipes": recipes}
+    # Generate recipe output
+    generated_text = generate_recipe(prompt)
+
+    # Parse generated sections (optional: this can be made better)
+    for i in range(5):
+        sections = generated_text.split("\n")
+        for section in sections:
+            section = section.strip()
+            if section.startswith("title:"):
+                print(f"[TITLE]: {section.replace('title:', '').strip().capitalize()}")
+            elif section.startswith("ingredients:"):
+                ingredients = section.replace("ingredients:", "").split("--")
+                print("[INGREDIENTS]:")
+                print("\n".join(f"  - {i+1}: {item.strip().capitalize()}" for i, item in enumerate(ingredients)))
+            elif section.startswith("directions:"):
+                directions = section.replace("directions:", "").split("--")
+                print("[DIRECTIONS]:")
+                print("\n".join(f"  - {i+1}: {step.strip().capitalize()}" for i, step in enumerate(directions)))
+
+        print("-" * 130)
+
+    # (Optional) Uncomment if you want Spoonacular fallback:
+    # recipes = [] if generated_text.strip() else get_spoonacular_recipes(ingredients_list)
+    # return {"ai_recipe": generated_text, "spoonacular_recipes": recipes}
 
 @app.post("/detect-ingredients")
-async def detect(file: UploadFile = File(...)):
-    os.makedirs(STATIC_DIR, exist_ok=True)
-
-   
+async def detect_ingredients_api(file: UploadFile = File(...)):
+    """Endpoint to detect ingredients from an uploaded image."""
     temp_path = os.path.join(STATIC_DIR, f"output_{file.filename}")
+
     with open(temp_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
     print(f"[INFO] Image successfully saved at: {temp_path}")
-
-   
-    placeholder_path = os.path.join(STATIC_DIR, "placeholder.jpg")
-    if not os.path.exists(placeholder_path):
-        print("[WARNING] Placeholder image not found. Creating a blank one.")
-        blank_placeholder = 255 * (cv2.imread(temp_path) * 0)  # Create blank white placeholder
-        cv2.imwrite(placeholder_path, blank_placeholder)
-
-    # ✅ Detect ingredients
-    detected_items = detect_ingredients(temp_path)
-    filtered_items = [item for item in detected_items if item['confidence'] >= 0.5]
-
-    # ✅ Substitute objects in saved image
-    substitute_objects(temp_path, filtered_items, temp_path, placeholder_path)
-
-    return {
-        "ingredients": filtered_items,
-        "output_image_url": f"/static/output_{file.filename}"
-    }
