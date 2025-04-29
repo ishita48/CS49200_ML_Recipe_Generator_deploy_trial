@@ -6,6 +6,7 @@ const RecipeGenerator = () => {
   const [allergies, setAllergies] = useState("");
   const [cuisine, setCuisine] = useState("Any");
   const [maxTime, setMaxTime] = useState(60);
+  const [servings, setServings] = useState(1);
   const [aiRecipes, setAiRecipes] = useState([]);
   const [selectedRecipeIndex, setSelectedRecipeIndex] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -15,10 +16,8 @@ const RecipeGenerator = () => {
   const [imageURL, setImageURL] = useState(null);
   const [showLowConfidence, setShowLowConfidence] = useState(true);
 
-
-  // Handle image upload
   const handleImageUpload = async (file) => {
-    setImage(URL.createObjectURL(file)); // Local preview
+    setImage(URL.createObjectURL(file));
     setLoading(true);
     setError("");
     const formData = new FormData();
@@ -28,17 +27,10 @@ const RecipeGenerator = () => {
       const response = await axios.post('http://localhost:8000/detect-ingredients', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
-
-      console.log("Detected Ingredients:", response.data.ingredients);
       setDetectedIngredients(response.data.ingredients);
-
-      // Set processed image from backend
       setImageURL(`http://localhost:8000${response.data.output_image_url}`);
-
-      // 🆕 NEW: Auto-fill the ingredients input box!
       const ingredientsList = response.data.ingredients.map(item => item.class_name).join(', ');
       setIngredients(ingredientsList);
-
     } catch (err) {
       console.error("Image recognition failed", err);
       setError("Failed to detect ingredients from image: " + (err.response?.data?.detail || err.message));
@@ -47,21 +39,6 @@ const RecipeGenerator = () => {
     }
   };
 
-
-
-  // Function to ensure image is loaded with correct dimensions
-  const handleImageLoad = (e) => {
-    // Force a re-render when the image is loaded to ensure bounding boxes align correctly
-    if (e.target.complete) {
-      // Apply a small timeout to ensure the image has fully rendered
-      setTimeout(() => {
-        const newUrl = imageURL + '?' + new Date().getTime();
-        setImageURL(newUrl);
-      }, 100);
-    }
-  };
-
-  // Handle recipe generation
   const handleGenerate = async () => {
     if (!ingredients.trim()) {
       setError("Please enter some ingredients.");
@@ -77,10 +54,9 @@ const RecipeGenerator = () => {
         ingredients,
         allergies,
         cuisine,
-        max_time: maxTime
+        max_time: maxTime,
+        servings
       });
-
-      // Set AI-generated recipes
       if (response.data.ai_recipes && response.data.ai_recipes.length > 0) {
         setAiRecipes(response.data.ai_recipes);
       }
@@ -92,7 +68,6 @@ const RecipeGenerator = () => {
     }
   };
 
-  // Handle recipe selection
   const handleRecipeSelect = (index) => {
     setSelectedRecipeIndex(index);
   };
@@ -101,7 +76,6 @@ const RecipeGenerator = () => {
     <div className="generator-container">
       <p>Upload a food image or enter ingredients manually to generate recipes</p>
 
-      {/* Image Upload */}
       <div className="upload-section">
         <h2>Upload an image of your ingredients (optional)</h2>
         <input
@@ -113,24 +87,17 @@ const RecipeGenerator = () => {
         />
       </div>
 
-      {/* Image Preview */}
       {imageURL && (
         <div className="image-container">
           <img
             src={imageURL}
             alt="Processed ingredients"
             className="uploaded-image"
-            style={{
-              width: '100%',
-              height: 'auto',
-              objectFit: 'contain',
-              maxHeight: '500px'
-            }}
+            style={{ width: '100%', height: 'auto', objectFit: 'contain', maxHeight: '500px' }}
           />
         </div>
       )}
 
-      {/* Detected Ingredients List */}
       {detectedIngredients.length > 0 && (
         <div className="detected-container">
           <h3>Detected Ingredients:</h3>
@@ -154,8 +121,6 @@ const RecipeGenerator = () => {
 
       <div className="input-section">
         <h2>Enter or edit ingredients and preferences</h2>
-
-        {/* Ingredients Input */}
         <label htmlFor="ingredients">Ingredients:</label>
         <textarea
           id="ingredients"
@@ -213,9 +178,23 @@ const RecipeGenerator = () => {
           className="textarea"
           disabled={loading}
         />
+
+        <label htmlFor="servings">Portion Size (Servings):</label>
+        <input
+          id="servings"
+          type="number"
+          min="1"
+          max="10"
+          value={servings}
+          onChange={(e) => {
+            const value = Math.max(1, Math.min(10, parseInt(e.target.value) || 1));
+            setServings(value);
+          }}
+          className="textarea"
+          disabled={loading}
+        />
       </div>
 
-      {/* Generate Button */}
       <div className="generate-section">
         <h2>Generate your recipes</h2>
         <button
@@ -227,13 +206,10 @@ const RecipeGenerator = () => {
         </button>
       </div>
 
-      {/* Error Message */}
       {error && <p className="error-message">{error}</p>}
 
-      {/* Recipe Results */}
       {aiRecipes.length > 0 && (
         <div className="results-section">
-          {/* Recipe Selection Buttons */}
           <div className="recipe-buttons">
             <h2>Generated Recipes:</h2>
             <div className="button-container">
@@ -249,11 +225,9 @@ const RecipeGenerator = () => {
             </div>
           </div>
 
-          {/* Selected Recipe Display */}
           <div className="recipe-box">
             <pre className="recipe-content">{aiRecipes[selectedRecipeIndex]}</pre>
           </div>
-
         </div>
       )}
     </div>

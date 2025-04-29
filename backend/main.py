@@ -44,7 +44,7 @@ def target_postprocessing(texts, special_tokens):
     return new_texts
 
 def build_prompt(ingredients, cuisine=None, allergies=None, max_time=None):
-    prompt = "items: " + ", ".join(ingredients)
+    prompt = "Remove serving number from directions " +"items: " + ", ".join(ingredients)
     if cuisine and cuisine.lower() != "any":
         prompt += f" | cuisine: {cuisine}"
     if allergies:
@@ -68,27 +68,24 @@ def generate_recipe(text):
     final_output = target_postprocessing(generated, tokenizer.all_special_tokens)
     return final_output[0]
 
-
-
 class RecipeRequest(BaseModel):
     ingredients: str
     allergies: str = ""
     cuisine: str = "Any"
     max_time: int = 60
-    source: str = "AI" 
+    servings: int = 1
+    source: str = "AI"
 
 @app.post("/generate")
 def generate(req: RecipeRequest):
     ingredients_list = [item.strip().lower() for item in req.ingredients.split(',') if item.strip()]
     allergies = req.allergies.strip().lower() if req.allergies else ""
     final_prompt = build_prompt(ingredients_list, req.cuisine, allergies, req.max_time)
-    
-    generated_recipes = []
-    
-    # Generate 5 recipes
-    for _ in range(5):
-        generated = generate_recipe(final_prompt)  # still uses generate_recipe(text) that generates 1 at a time
 
+    generated_recipes = []
+
+    for _ in range(5):
+        generated = generate_recipe(final_prompt)
         sections = generated.split("\n")
         formatted_recipe = ""
 
@@ -111,34 +108,32 @@ def generate(req: RecipeRequest):
                 for i, direction in enumerate(directions_list):
                     formatted_recipe += f"  - {i+1}: {direction.strip().capitalize()}\n"
 
+        formatted_recipe += f"\n[SERVINGS]: {req.servings}\n"
+        formatted_recipe += f"[TIME]: {req.max_time} minutes\n"
+
         generated_recipes.append(formatted_recipe)
 
     return {"ai_recipes": generated_recipes}
-
 
 @app.post("/detect-ingredients")
 async def detect(file: UploadFile = File(...)):
     os.makedirs(STATIC_DIR, exist_ok=True)
 
-   
     temp_path = os.path.join(STATIC_DIR, f"output_{file.filename}")
     with open(temp_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
     print(f"[INFO] Image successfully saved at: {temp_path}")
 
-   
     placeholder_path = os.path.join(STATIC_DIR, "placeholder.jpg")
     if not os.path.exists(placeholder_path):
         print("[WARNING] Placeholder image not found. Creating a blank one.")
-        blank_placeholder = 255 * (cv2.imread(temp_path) * 0)  # Create blank white placeholder
+        blank_placeholder = 255 * (cv2.imread(temp_path) * 0)
         cv2.imwrite(placeholder_path, blank_placeholder)
 
-    # ✅ Detect ingredients
     detected_items = detect_ingredients(temp_path)
     filtered_items = [item for item in detected_items if item['confidence'] >= 0.5]
 
-    # ✅ Substitute objects in saved image
     substitute_objects(temp_path, filtered_items, temp_path, placeholder_path)
 
     return {
