@@ -96,7 +96,6 @@ const RecipeGenerator = () => {
 
   return (
     <div className="generator-container">
-      <h1>AI Recipe Generator</h1>
       <p>Upload a food image or enter ingredients manually to generate recipes</p>
 
       {/* Image Upload */}
@@ -216,7 +215,7 @@ const RecipeGenerator = () => {
 
       {/* Generate Button */}
       <div className="generate-section">
-        <h2>Step 3: Generate your recipe</h2>
+        <h2>Generate your recipes</h2>
         <button 
           onClick={handleGenerate} 
           className="button"

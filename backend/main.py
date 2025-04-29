@@ -69,6 +69,7 @@ def generate_recipe(text):
     return final_output[0]
 
 
+
 class RecipeRequest(BaseModel):
     ingredients: str
     allergies: str = ""
@@ -82,35 +83,38 @@ def generate(req: RecipeRequest):
     allergies = req.allergies.strip().lower() if req.allergies else ""
     final_prompt = build_prompt(ingredients_list, req.cuisine, allergies, req.max_time)
     
-    generated = generate_recipe(final_prompt)
+    generated_recipes = []
     
-    # Parse the generated recipe into a structured format
-    recipe_output = []
-    sections = generated.split("\n")
-    formatted_recipe = ""
-    
-    for section in sections:
-        section = section.strip()
-        if section.startswith("title:"):
-            title = section.replace("title:", "").strip().capitalize()
-            formatted_recipe += f"[TITLE]: {title}\n\n"
-        elif section.startswith("ingredients:"):
-            formatted_recipe += "[INGREDIENTS]:\n"
-            ingredients_text = section.replace("ingredients:", "").strip()
-            ingredients_list = ingredients_text.split("--")
-            for i, ingredient in enumerate(ingredients_list):
-                formatted_recipe += f"  - {i+1}: {ingredient.strip().capitalize()}\n"
-            formatted_recipe += "\n"
-        elif section.startswith("directions:"):
-            formatted_recipe += "[DIRECTIONS]:\n"
-            directions_text = section.replace("directions:", "").strip()
-            directions_list = directions_text.split("--")
-            for i, direction in enumerate(directions_list):
-                formatted_recipe += f"  - {i+1}: {direction.strip().capitalize()}\n"
-    
-    recipe_output.append(formatted_recipe)
-    
-    return {"ai_recipes": recipe_output}
+    # Generate 5 recipes
+    for _ in range(5):
+        generated = generate_recipe(final_prompt)  # still uses generate_recipe(text) that generates 1 at a time
+
+        sections = generated.split("\n")
+        formatted_recipe = ""
+
+        for section in sections:
+            section = section.strip()
+            if section.startswith("title:"):
+                title = section.replace("title:", "").strip().capitalize()
+                formatted_recipe += f"[TITLE]: {title}\n\n"
+            elif section.startswith("ingredients:"):
+                formatted_recipe += "[INGREDIENTS]:\n"
+                ingredients_text = section.replace("ingredients:", "").strip()
+                ingredients_list = ingredients_text.split("--")
+                for i, ingredient in enumerate(ingredients_list):
+                    formatted_recipe += f"  - {i+1}: {ingredient.strip().capitalize()}\n"
+                formatted_recipe += "\n"
+            elif section.startswith("directions:"):
+                formatted_recipe += "[DIRECTIONS]:\n"
+                directions_text = section.replace("directions:", "").strip()
+                directions_list = directions_text.split("--")
+                for i, direction in enumerate(directions_list):
+                    formatted_recipe += f"  - {i+1}: {direction.strip().capitalize()}\n"
+
+        generated_recipes.append(formatted_recipe)
+
+    return {"ai_recipes": generated_recipes}
+
 
 @app.post("/detect-ingredients")
 async def detect(file: UploadFile = File(...)):
