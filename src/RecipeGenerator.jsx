@@ -23,22 +23,22 @@ const RecipeGenerator = () => {
     setError("");
     const formData = new FormData();
     formData.append('file', file);
-  
+
     try {
       const response = await axios.post('http://localhost:8000/detect-ingredients', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
-  
+
       console.log("Detected Ingredients:", response.data.ingredients);
       setDetectedIngredients(response.data.ingredients);
-      
+
       // Set processed image from backend
       setImageURL(`http://localhost:8000${response.data.output_image_url}`);
-  
-      // Autofill the ingredients input box
+
+      // 🆕 NEW: Auto-fill the ingredients input box!
       const ingredientsList = response.data.ingredients.map(item => item.class_name).join(', ');
       setIngredients(ingredientsList);
-  
+
     } catch (err) {
       console.error("Image recognition failed", err);
       setError("Failed to detect ingredients from image: " + (err.response?.data?.detail || err.message));
@@ -46,7 +46,8 @@ const RecipeGenerator = () => {
       setLoading(false);
     }
   };
-  
+
+
 
   // Function to ensure image is loaded with correct dimensions
   const handleImageLoad = (e) => {
@@ -103,26 +104,25 @@ const RecipeGenerator = () => {
       {/* Image Upload */}
       <div className="upload-section">
         <h2>Upload an image of your ingredients (optional)</h2>
-        <input 
-          type="file" 
-          accept="image/*" 
-          onChange={(e) => e.target.files[0] && handleImageUpload(e.target.files[0])} 
-          className="file-upload" 
+        <input
+          type="file"
+          accept="image/*"
+          onChange={(e) => e.target.files[0] && handleImageUpload(e.target.files[0])}
+          className="file-upload"
           disabled={loading}
         />
       </div>
-      
+
       {/* Image Preview */}
-      {image && (
+      {imageURL && (
         <div className="image-container">
-          <img 
-            src={imageURL || image} 
-            alt="Uploaded ingredients" 
-            className="uploaded-image" 
-            onLoad={handleImageLoad}
-            style={{ 
-              width: '100%', 
-              height: 'auto', 
+          <img
+            src={imageURL}
+            alt="Processed ingredients"
+            className="uploaded-image"
+            style={{
+              width: '100%',
+              height: 'auto',
               objectFit: 'contain',
               maxHeight: '500px'
             }}
@@ -141,10 +141,10 @@ const RecipeGenerator = () => {
                 <li key={index} style={{ color: item.confidence > 0.5 ? 'green' : 'red' }}>
                   {item.class_name} ({(item.confidence * 100).toFixed(1)}%)
                 </li>
-            ))}
+              ))}
           </ul>
-          <button 
-            className="toggle-button" 
+          <button
+            className="toggle-button"
             onClick={() => setShowLowConfidence(!showLowConfidence)}
           >
             {showLowConfidence ? "Hide Low Confidence" : "Show All"}
@@ -154,7 +154,7 @@ const RecipeGenerator = () => {
 
       <div className="input-section">
         <h2>Enter or edit ingredients and preferences</h2>
-        
+
         {/* Ingredients Input */}
         <label htmlFor="ingredients">Ingredients:</label>
         <textarea
@@ -168,21 +168,21 @@ const RecipeGenerator = () => {
         />
 
         <label htmlFor="allergies">Allergies (optional):</label>
-        <input 
+        <input
           id="allergies"
-          type="text" 
-          value={allergies} 
-          onChange={(e) => setAllergies(e.target.value)} 
-          placeholder="e.g., nuts, dairy, gluten..." 
+          type="text"
+          value={allergies}
+          onChange={(e) => setAllergies(e.target.value)}
+          placeholder="e.g., nuts, dairy, gluten..."
           className="textarea"
           disabled={loading}
         />
-        
+
         <label htmlFor="cuisine">Cuisine Type:</label>
-        <select 
+        <select
           id="cuisine"
-          value={cuisine} 
-          onChange={(e) => setCuisine(e.target.value)} 
+          value={cuisine}
+          onChange={(e) => setCuisine(e.target.value)}
           className="textarea"
           disabled={loading}
         >
@@ -201,15 +201,15 @@ const RecipeGenerator = () => {
           <option value="Thai">Thai</option>
           <option value="Vietnamese">Vietnamese</option>
         </select>
-        
+
         <label htmlFor="maxTime">Maximum Cooking Time (minutes):</label>
-        <input 
+        <input
           id="maxTime"
-          type="number" 
-          value={maxTime} 
-          onChange={(e) => setMaxTime(parseInt(e.target.value) || 60)} 
-          min="10" 
-          max="180" 
+          type="number"
+          value={maxTime}
+          onChange={(e) => setMaxTime(parseInt(e.target.value) || 60)}
+          min="10"
+          max="180"
           className="textarea"
           disabled={loading}
         />
@@ -218,8 +218,8 @@ const RecipeGenerator = () => {
       {/* Generate Button */}
       <div className="generate-section">
         <h2>Generate your recipes</h2>
-        <button 
-          onClick={handleGenerate} 
+        <button
+          onClick={handleGenerate}
           className="button"
           disabled={loading || !ingredients.trim()}
         >
@@ -253,7 +253,7 @@ const RecipeGenerator = () => {
           <div className="recipe-box">
             <pre className="recipe-content">{aiRecipes[selectedRecipeIndex]}</pre>
           </div>
-          
+
         </div>
       )}
     </div>
