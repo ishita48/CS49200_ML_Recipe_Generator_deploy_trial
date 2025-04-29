@@ -34,7 +34,7 @@ def detect_ingredients(image_path):
     }
     
     payload = {
-        "model": "gpt-4-vision-preview",
+        "model": "gpt-4o",
         "messages": [
             {
                 "role": "user",
@@ -62,7 +62,10 @@ def detect_ingredients(image_path):
         
         # Extract the response content
         result = response.json()
+        print(f"[DEBUG] API Response: {json.dumps(result, indent=2)}")
+        
         content = result["choices"][0]["message"]["content"]
+        print(f"[DEBUG] Content: {content}")
         
         # Parse the JSON response
         # Find the JSON part in the response (it might be embedded in text)
@@ -70,13 +73,16 @@ def detect_ingredients(image_path):
         json_match = re.search(r'\[.*\]', content, re.DOTALL)
         if json_match:
             json_str = json_match.group(0)
+            print(f"[DEBUG] Found JSON match: {json_str}")
             ingredients_data = json.loads(json_str)
         else:
             # If no JSON array is found, try to parse the entire content
             try:
                 ingredients_data = json.loads(content)
-            except:
-                print("[WARNING] Could not parse JSON from API response. Using empty list.")
+                print(f"[DEBUG] Parsed entire content as JSON")
+            except Exception as json_err:
+                print(f"[WARNING] Could not parse JSON from API response: {str(json_err)}")
+                print(f"[WARNING] Raw content: {content}")
                 ingredients_data = []
         
         # Convert percentage-based coordinates to pixel coordinates
