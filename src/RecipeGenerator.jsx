@@ -8,7 +8,6 @@ const RecipeGenerator = () => {
   const [maxTime, setMaxTime] = useState(60);
   const [aiRecipes, setAiRecipes] = useState([]);
   const [selectedRecipeIndex, setSelectedRecipeIndex] = useState(0);
-  const [spoonacularRecipes, setSpoonacularRecipes] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [detectedIngredients, setDetectedIngredients] = useState([]);
@@ -69,7 +68,6 @@ const RecipeGenerator = () => {
     setError("");
     setAiRecipes([]);
     setSelectedRecipeIndex(0);
-    setSpoonacularRecipes([]);
 
     try {
       const response = await axios.post('http://localhost:8000/generate', {
@@ -82,11 +80,6 @@ const RecipeGenerator = () => {
       // Set AI-generated recipes
       if (response.data.ai_recipes && response.data.ai_recipes.length > 0) {
         setAiRecipes(response.data.ai_recipes);
-      }
-      
-      // Set Spoonacular recipes if available
-      if (response.data.spoonacular_recipes && response.data.spoonacular_recipes.length > 0) {
-        setSpoonacularRecipes(response.data.spoonacular_recipes);
       }
     } catch (err) {
       console.error(err);
@@ -261,32 +254,6 @@ const RecipeGenerator = () => {
             <pre className="recipe-content">{aiRecipes[selectedRecipeIndex]}</pre>
           </div>
           
-          {/* Spoonacular Recipes */}
-          {spoonacularRecipes.length > 0 && (
-            <div className="spoonacular-recipes">
-              <h2>Alternative Recipe Suggestions:</h2>
-              <div className="recipe-grid">
-                {spoonacularRecipes.map((recipe, index) => (
-                  <div key={index} className="recipe-card">
-                    <h3>{recipe.title}</h3>
-                    {recipe.image && (
-                      <img src={recipe.image} alt={recipe.title} className="recipe-image" />
-                    )}
-                    <p>Used ingredients: {recipe.usedIngredientCount}</p>
-                    <p>Missing ingredients: {recipe.missedIngredientCount}</p>
-                    <a 
-                      href={`https://spoonacular.com/recipes/${recipe.title.replace(/\s+/g, '-').toLowerCase()}-${recipe.id}`} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="view-recipe-btn"
-                    >
-                      View Full Recipe
-                    </a>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       )}
     </div>

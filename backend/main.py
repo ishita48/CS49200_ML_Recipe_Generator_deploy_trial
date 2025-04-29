@@ -4,7 +4,6 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 from imagerecognition import detect_ingredients, substitute_objects
-import requests
 import os
 import shutil
 import cv2
@@ -12,13 +11,11 @@ import cv2
 MODEL_NAME_OR_PATH = "flax-community/t5-recipe-generation"
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME_OR_PATH)
 model = AutoModelForSeq2SeqLM.from_pretrained(MODEL_NAME_OR_PATH)
-SPOONACULAR_API_KEY = "YOUR_SPOONACULAR_API_KEY"
 
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", 
-                  "http://localhost:5174", "http://127.0.0.1:5174"],
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -47,7 +44,7 @@ def target_postprocessing(texts, special_tokens):
     return new_texts
 
 def build_prompt(ingredients, cuisine=None, allergies=None, max_time=None):
-    prompt = "Avoid personal statements and be direct as much as possible with directions" +"items: " + ", ".join(ingredients)
+    prompt = "items: " + ", ".join(ingredients)
     if cuisine and cuisine.lower() != "any":
         prompt += f" | cuisine: {cuisine}"
     if allergies:
@@ -56,36 +53,21 @@ def build_prompt(ingredients, cuisine=None, allergies=None, max_time=None):
         prompt += f" | max_time: {max_time} mins"
     return prompt
 
-def generate_recipe(text, num_recipes=5):
+def generate_recipe(text):
     inputs = tokenizer(text, return_tensors="pt", padding=True, truncation=True)
-    
-    # Generate multiple recipes with different randomness
-    all_recipes = []
-    for i in range(num_recipes):
-        output_ids = model.generate(
-            input_ids=inputs.input_ids,
-            max_length=1000,
-            min_length=64,
-            no_repeat_ngram_size=3,
-            do_sample=True,
-            top_k=60,
-            top_p=0.95
-        )
-        generated = tokenizer.batch_decode(output_ids, skip_special_tokens=False)
-        final_output = target_postprocessing(generated, tokenizer.all_special_tokens)
-        all_recipes.append(final_output[0])
-    
-    return all_recipes
+    output_ids = model.generate(
+        input_ids=inputs.input_ids,
+        max_length=750,
+        min_length=64,
+        no_repeat_ngram_size=3,
+        do_sample=True,
+        top_k=60,
+        top_p=0.95
+    )
+    generated = tokenizer.batch_decode(output_ids, skip_special_tokens=False)
+    final_output = target_postprocessing(generated, tokenizer.all_special_tokens)
+    return final_output[0]
 
-def get_spoonacular_recipes(ingredients):
-    url = "https://api.spoonacular.com/recipes/findByIngredients"
-    params = {
-        "ingredients": ",".join(ingredients),
-        "number": 5,
-        "apiKey": SPOONACULAR_API_KEY
-    }
-    response = requests.get(url, params=params)
-    return response.json() if response.status_code == 200 else []
 
 class RecipeRequest(BaseModel):
     ingredients: str
@@ -99,23 +81,36 @@ def generate(req: RecipeRequest):
     ingredients_list = [item.strip().lower() for item in req.ingredients.split(',') if item.strip()]
     allergies = req.allergies.strip().lower() if req.allergies else ""
     final_prompt = build_prompt(ingredients_list, req.cuisine, allergies, req.max_time)
-
-    if req.source == "Spoonacular":
-        # Directly fetch recipes from Spoonacular if selected
-        spoonacular_recipes = get_spoonacular_recipes(ingredients_list)
-        return {
-            "ai_recipes": [],
-            "spoonacular_recipes": spoonacular_recipes
-        }
-    else:
-        # Generate multiple AI recipes
-        ai_recipes = generate_recipe(final_prompt)
-        spoonacular_recipes = get_spoonacular_recipes(ingredients_list)
-        return {
-            "ai_recipes": ai_recipes,
-            "spoonacular_recipes": spoonacular_recipes
-        }
-
+    
+    generated = generate_recipe(final_prompt)
+    
+    # Parse the generated recipe into a structured format
+    recipe_output = []
+    sections = generated.split("\n")
+    formatted_recipe = ""
+    
+    for section in sections:
+        section = section.strip()
+        if section.startswith("title:"):
+            title = section.replace("title:", "").strip().capitalize()
+            formatted_recipe += f"[TITLE]: {title}\n\n"
+        elif section.startswith("ingredients:"):
+            formatted_recipe += "[INGREDIENTS]:\n"
+            ingredients_text = section.replace("ingredients:", "").strip()
+            ingredients_list = ingredients_text.split("--")
+            for i, ingredient in enumerate(ingredients_list):
+                formatted_recipe += f"  - {i+1}: {ingredient.strip().capitalize()}\n"
+            formatted_recipe += "\n"
+        elif section.startswith("directions:"):
+            formatted_recipe += "[DIRECTIONS]:\n"
+            directions_text = section.replace("directions:", "").strip()
+            directions_list = directions_text.split("--")
+            for i, direction in enumerate(directions_list):
+                formatted_recipe += f"  - {i+1}: {direction.strip().capitalize()}\n"
+    
+    recipe_output.append(formatted_recipe)
+    
+    return {"ai_recipes": recipe_output}
 
 @app.post("/detect-ingredients")
 async def detect(file: UploadFile = File(...)):
