@@ -1,87 +1,157 @@
-# -*- coding: utf-8 -*-
-"""
-Recipe Generator
+import os
+import cv2
+import base64
+import requests
+import json
+from PIL import Image
+import io
 
-Original base: Hugging Face flax-community/t5-recipe-generation
-Updated: Converted to PyTorch for faster generation
-Original file: https://colab.research.google.com/drive/1srvHIRL7tIN1nIWq7hGBC-uYFyEjtDsa
-"""
+from dotenv import load_dotenv
 
-# === Install dependencies if needed ===
-# !pip install transformers
+# Load environment variables
+load_dotenv()
 
-import torch
-from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
+# OpenAI API configuration
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_API_URL = "https://api.openai.com/v1/chat/completions"
 
-# === Model and Tokenizer Setup ===
-MODEL_NAME_OR_PATH = "flax-community/t5-recipe-generation"
+def encode_image_to_base64(image_path):
+    """Convert an image to base64 encoding for API transmission"""
+    with open(image_path, "rb") as image_file:
+        return base64.b64encode(image_file.read()).decode('utf-8')
 
-tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME_OR_PATH, use_fast=True)
-model = AutoModelForSeq2SeqLM.from_pretrained(
-    MODEL_NAME_OR_PATH,
-    torch_dtype=torch.float16  # Use half precision for faster performance
-).to("cuda").eval()
+def detect_ingredients(image_path):
+    """Detect ingredients in an image using ChatGPT Vision API"""
+    print(f"[INFO] Detecting ingredients from: {image_path}")
+    
+    # Encode the image
+    base64_image = encode_image_to_base64(image_path)
+    
+    # Prepare the API request
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {OPENAI_API_KEY}"
+    }
+    
+    payload = {
+        "model": "gpt-4o",
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "Identify all food ingredients in this image. For each ingredient, provide: 1) the name, 2) a confidence score between 0 and 1, and 3) the approximate bounding box coordinates [x1, y1, x2, y2] where x1,y1 is the top-left corner and x2,y2 is the bottom-right corner. Express coordinates as percentages of image dimensions. Format your response as a JSON array of objects with properties: class_name, confidence, and bbox."
+                    },
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/jpeg;base64,{base64_image}"
+                        }
+                    }
+                ]
+            }
+        ],
+        "max_tokens": 1000
+    }
+    
+    try:
+        # Make the API request
+        response = requests.post(OPENAI_API_URL, headers=headers, json=payload)
+        response.raise_for_status()
+        
+        # Extract the response content
+        result = response.json()
+        print(f"[DEBUG] API Response: {json.dumps(result, indent=2)}")
+        
+        content = result["choices"][0]["message"]["content"]
+        print(f"[DEBUG] Content: {content}")
+        
+        # Parse the JSON response
+        # Find the JSON part in the response (it might be embedded in text)
+        import re
+        json_match = re.search(r'\[.*\]', content, re.DOTALL)
+        if json_match:
+            json_str = json_match.group(0)
+            print(f"[DEBUG] Found JSON match: {json_str}")
+            ingredients_data = json.loads(json_str)
+        else:
+            # If no JSON array is found, try to parse the entire content
+            try:
+                ingredients_data = json.loads(content)
+                print(f"[DEBUG] Parsed entire content as JSON")
+            except Exception as json_err:
+                print(f"[WARNING] Could not parse JSON from API response: {str(json_err)}")
+                print(f"[WARNING] Raw content: {content}")
+                ingredients_data = []
+        
+        # Convert percentage-based coordinates to pixel coordinates
+        img = Image.open(image_path)
+        width, height = img.size
+        
+        detections = []
+        for item in ingredients_data:
+            # Convert percentage coordinates to pixel coordinates
+            if "bbox" in item:
+                x1_pct, y1_pct, x2_pct, y2_pct = item["bbox"]
+                bbox = [
+                    int(x1_pct * width / 100),
+                    int(y1_pct * height / 100),
+                    int(x2_pct * width / 100),
+                    int(y2_pct * height / 100)
+                ]
+            else:
+                # If no bbox is provided, use the entire image
+                bbox = [0, 0, width, height]
+            
+            detection = {
+                "class_id": 0,  # Not used with ChatGPT but kept for compatibility
+                "class_name": item["class_name"],
+                "confidence": item["confidence"] if "confidence" in item else 0.9,
+                "bbox": bbox
+            }
+            print(f"[DETECTED] {detection}")
+            detections.append(detection)
+        
+        if not detections:
+            print("[INFO] No ingredients detected.")
+        
+        return detections
+    
+    except Exception as e:
+        print(f"[ERROR] API request failed: {str(e)}")
+        return []
 
-# === Generation Settings ===
-prefix = "items: "
-generation_kwargs = {
-    "max_length": 512,
-    "min_length": 64,
-    "no_repeat_ngram_size": 3,
-    "do_sample": True,
-    "top_k": 60,
-    "top_p": 0.95,
-}
 
-# === Special Tokens Mapping ===
-special_tokens = tokenizer.all_special_tokens
-tokens_map = {
-    "<sep>": "--",
-    "<section>": "\n",
-}
+def substitute_objects(image_path, detections, output_path, placeholder_path="static/placeholder.jpg"):
+    """Highlight detected ingredients in the image"""
+    
+    if not os.path.exists(placeholder_path):
+        print(f"[WARNING] Placeholder image not found. Creating an empty placeholder.")
+        placeholder = 255 * (cv2.imread(image_path) * 0)
+        cv2.imwrite(placeholder_path, placeholder)
 
-# === Helper Functions ===
-def remove_special_tokens(text: str, special_tokens: list) -> str:
-    """Remove all special tokens from a given text."""
-    for token in special_tokens:
-        text = text.replace(token, "")
-    return text
+    image = cv2.imread(image_path)
+    
+    if image is None:
+        raise ValueError(f"[ERROR] Cannot read input image at {image_path}.")
+    
+    print(f"[INFO] Highlighting {len(detections)} objects in image.")
 
-def postprocess_generated_texts(texts, special_tokens) -> list:
-    """Post-process model outputs by removing and replacing special tokens."""
-    if not isinstance(texts, list):
-        texts = [texts]
+    # Draw bounding boxes instead of substituting
+    for detection in detections:
+        x1, y1, x2, y2 = map(int, detection["bbox"])
+        confidence = detection["confidence"]
+        
+        # Choose color based on confidence (green for high, red for low)
+        color = (0, 255, 0) if confidence > 0.5 else (0, 0, 255)
+        
+        # Draw rectangle
+        cv2.rectangle(image, (x1, y1), (x2, y2), color, 2)
+        
+        # Add label
+        label = f"{detection['class_name']} ({confidence:.2f})"
+        cv2.putText(image, label, (x1, y1-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
 
-    processed_texts = []
-    for text in texts:
-        text = remove_special_tokens(text, special_tokens)
-        for token, replacement in tokens_map.items():
-            text = text.replace(token, replacement)
-        processed_texts.append(text)
-
-    return processed_texts
-
-def generate_recipe(texts) -> list:
-    """Generate recipe text based on input ingredients or prompt."""
-    if not isinstance(texts, list):
-        texts = [texts]
-
-    inputs = [prefix + text for text in texts]
-
-    encodings = tokenizer(
-        inputs,
-        max_length=256,
-        padding="max_length",
-        truncation=True,
-        return_tensors="pt"
-    ).to("cuda")
-
-    with torch.no_grad():
-        output_ids = model.generate(
-            input_ids=encodings.input_ids,
-            attention_mask=encodings.attention_mask,
-            **generation_kwargs
-        )
-
-    decoded_texts = tokenizer.batch_decode(output_ids, skip_special_tokens=False)
-    return postprocess_generated_texts(decoded_texts, special_tokens)
+    cv2.imwrite(output_path, image)
+    print(f"[INFO] Highlighted image saved to: {output_path}")
