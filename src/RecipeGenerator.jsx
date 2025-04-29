@@ -18,26 +18,27 @@ const RecipeGenerator = () => {
 
   // Handle image upload
   const handleImageUpload = async (file) => {
-    setImage(URL.createObjectURL(file)); // Display uploaded image
+    setImage(URL.createObjectURL(file)); // Local preview
     setLoading(true);
     setError("");
     const formData = new FormData();
     formData.append('file', file);
-
+  
     try {
       const response = await axios.post('http://localhost:8000/detect-ingredients', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
-
+  
       console.log("Detected Ingredients:", response.data.ingredients);
       setDetectedIngredients(response.data.ingredients);
       
-      // Set the image URL to the processed image from the backend
+      // Set processed image from backend
       setImageURL(`http://localhost:8000${response.data.output_image_url}`);
-      
-      // Update ingredients input with detected ingredients
-      setIngredients(response.data.ingredients.map(item => item.class_name).join(', ')); 
-
+  
+      // Autofill the ingredients input box
+      const ingredientsList = response.data.ingredients.map(item => item.class_name).join(', ');
+      setIngredients(ingredientsList);
+  
     } catch (err) {
       console.error("Image recognition failed", err);
       setError("Failed to detect ingredients from image: " + (err.response?.data?.detail || err.message));
@@ -45,6 +46,7 @@ const RecipeGenerator = () => {
       setLoading(false);
     }
   };
+  
 
   // Function to ensure image is loaded with correct dimensions
   const handleImageLoad = (e) => {
@@ -233,7 +235,7 @@ const RecipeGenerator = () => {
         <div className="results-section">
           {/* Recipe Selection Buttons */}
           <div className="recipe-buttons">
-            <h2>AI-Generated Recipes:</h2>
+            <h2>Generated Recipes:</h2>
             <div className="button-container">
               {aiRecipes.map((recipe, index) => (
                 <button
@@ -249,7 +251,6 @@ const RecipeGenerator = () => {
 
           {/* Selected Recipe Display */}
           <div className="recipe-box">
-            <h3>Selected Recipe:</h3>
             <pre className="recipe-content">{aiRecipes[selectedRecipeIndex]}</pre>
           </div>
           
