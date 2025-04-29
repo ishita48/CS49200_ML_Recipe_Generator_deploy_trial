@@ -1,4 +1,3 @@
-
 import os
 import cv2
 import base64
@@ -7,7 +6,6 @@ import json
 from PIL import Image
 import io
 
-import os
 from dotenv import load_dotenv
 
 # Load environment variables

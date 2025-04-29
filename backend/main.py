@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -8,15 +8,6 @@ import requests
 import os
 import shutil
 import cv2
-import dotenv
-import logging
-
-# Set up logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-# Load environment variables
-dotenv.load_dotenv()
 
 MODEL_NAME_OR_PATH = "flax-community/t5-recipe-generation"
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME_OR_PATH)
@@ -26,7 +17,8 @@ SPOONACULAR_API_KEY = "YOUR_SPOONACULAR_API_KEY"
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", 
+                  "http://localhost:5174", "http://127.0.0.1:5174"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -55,29 +47,35 @@ def target_postprocessing(texts, special_tokens):
     return new_texts
 
 def build_prompt(ingredients, cuisine=None, allergies=None, max_time=None):
-    prompt =  "Avoid using personal statements and be very specific with directions" + "items: " + ", ".join(ingredients)
+    prompt = "Avoid personal statements and be direct as much as possible with directions" +"items: " + ", ".join(ingredients)
     if cuisine and cuisine.lower() != "any":
         prompt += f" | cuisine: {cuisine}"
-    if allergies: 
+    if allergies:
         prompt += f" | avoid: {allergies}"
     if max_time:
         prompt += f" | max_time: {max_time} mins"
     return prompt
 
-def generate_recipe(text):
+def generate_recipe(text, num_recipes=5):
     inputs = tokenizer(text, return_tensors="pt", padding=True, truncation=True)
-    output_ids = model.generate(
-        input_ids=inputs.input_ids,
-        max_length=1000,
-        min_length=64,
-        no_repeat_ngram_size=3,
-        do_sample=True,
-        top_k=60,
-        top_p=0.95
-    )
-    generated = tokenizer.batch_decode(output_ids, skip_special_tokens=False)
-    final_output = target_postprocessing(generated, tokenizer.all_special_tokens)
-    return final_output[0]
+    
+    # Generate multiple recipes with different randomness
+    all_recipes = []
+    for i in range(num_recipes):
+        output_ids = model.generate(
+            input_ids=inputs.input_ids,
+            max_length=1000,
+            min_length=64,
+            no_repeat_ngram_size=3,
+            do_sample=True,
+            top_k=60,
+            top_p=0.95
+        )
+        generated = tokenizer.batch_decode(output_ids, skip_special_tokens=False)
+        final_output = target_postprocessing(generated, tokenizer.all_special_tokens)
+        all_recipes.append(final_output[0])
+    
+    return all_recipes
 
 def get_spoonacular_recipes(ingredients):
     url = "https://api.spoonacular.com/recipes/findByIngredients"
@@ -94,54 +92,57 @@ class RecipeRequest(BaseModel):
     allergies: str = ""
     cuisine: str = "Any"
     max_time: int = 60
+    source: str = "AI" 
 
 @app.post("/generate")
 def generate(req: RecipeRequest):
     ingredients_list = [item.strip().lower() for item in req.ingredients.split(',') if item.strip()]
     allergies = req.allergies.strip().lower() if req.allergies else ""
     final_prompt = build_prompt(ingredients_list, req.cuisine, allergies, req.max_time)
-    recipe_output = generate_recipe(final_prompt)
-    recipes = [] if recipe_output.strip() else get_spoonacular_recipes(ingredients_list)
-    return {"ai_recipe": recipe_output, "spoonacular_recipes": recipes}
+
+    if req.source == "Spoonacular":
+        # Directly fetch recipes from Spoonacular if selected
+        spoonacular_recipes = get_spoonacular_recipes(ingredients_list)
+        return {
+            "ai_recipes": [],
+            "spoonacular_recipes": spoonacular_recipes
+        }
+    else:
+        # Generate multiple AI recipes
+        ai_recipes = generate_recipe(final_prompt)
+        spoonacular_recipes = get_spoonacular_recipes(ingredients_list)
+        return {
+            "ai_recipes": ai_recipes,
+            "spoonacular_recipes": spoonacular_recipes
+        }
+
 
 @app.post("/detect-ingredients")
 async def detect(file: UploadFile = File(...)):
-    """
-    Endpoint to detect ingredients in an uploaded image using ChatGPT Vision API
-    """
-    try:
-        # Ensure static directory exists
-        os.makedirs(STATIC_DIR, exist_ok=True)
-        
-        # Save the uploaded file
-        temp_path = os.path.join(STATIC_DIR, f"output_{file.filename}")
-        with open(temp_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-        
-        logger.info(f"Image successfully saved at: {temp_path}")
-        
-        # Ensure placeholder exists
-        placeholder_path = os.path.join(STATIC_DIR, "placeholder.jpg")
-        if not os.path.exists(placeholder_path):
-            logger.warning("Placeholder image not found. Creating a blank one.")
-            blank_placeholder = 255 * (cv2.imread(temp_path) * 0)  # Create blank white placeholder
-            cv2.imwrite(placeholder_path, blank_placeholder)
-        
-        # Detect ingredients using ChatGPT Vision API
-        detected_items = detect_ingredients(temp_path)
-        
-        # No need to filter by confidence as ChatGPT already provides high-quality detections
-        # But we'll keep the structure for compatibility
-        filtered_items = detected_items
-        
-        # Highlight detected ingredients in the image
-        substitute_objects(temp_path, filtered_items, temp_path, placeholder_path)
-        
-        return {
-            "ingredients": filtered_items,
-            "output_image_url": f"/static/output_{file.filename}"
-        }
-    
-    except Exception as e:
-        logger.error(f"Error processing image: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error processing image: {str(e)}")
+    os.makedirs(STATIC_DIR, exist_ok=True)
+
+   
+    temp_path = os.path.join(STATIC_DIR, f"output_{file.filename}")
+    with open(temp_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    print(f"[INFO] Image successfully saved at: {temp_path}")
+
+   
+    placeholder_path = os.path.join(STATIC_DIR, "placeholder.jpg")
+    if not os.path.exists(placeholder_path):
+        print("[WARNING] Placeholder image not found. Creating a blank one.")
+        blank_placeholder = 255 * (cv2.imread(temp_path) * 0)  # Create blank white placeholder
+        cv2.imwrite(placeholder_path, blank_placeholder)
+
+    # ✅ Detect ingredients
+    detected_items = detect_ingredients(temp_path)
+    filtered_items = [item for item in detected_items if item['confidence'] >= 0.5]
+
+    # ✅ Substitute objects in saved image
+    substitute_objects(temp_path, filtered_items, temp_path, placeholder_path)
+
+    return {
+        "ingredients": filtered_items,
+        "output_image_url": f"/static/output_{file.filename}"
+    }

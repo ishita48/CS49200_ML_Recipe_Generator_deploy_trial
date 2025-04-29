@@ -149,6 +149,43 @@ h1 {
 }
 
 
+.recipe-buttons {
+  margin-bottom: 20px;
+}
+
+.button-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 15px;
+}
+
+.recipe-button {
+  padding: 10px 20px;
+  background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+  color: #333;
+  border: 2px solid #ccc;
+  border-radius: 10px;
+  font-size: 1em;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.recipe-button:hover {
+  background: linear-gradient(135deg, #e9ecef, #dee2e6);
+  border-color: #ff8c42;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.recipe-button.selected {
+  background: linear-gradient(135deg, #ff8c42, #ff4e50);
+  color: white;
+  border-color: #ff4e50;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
 .recipe-box {
   background: white;
   padding: 24px;

@@ -1,7 +1,6 @@
 
 backend:
-.\venv\Scripts\activate
-uvicorn main:app --reload
+cd backend; .\venv\Scripts\Activate.ps1; uvicorn main:app --reload
 
 
 frontend:

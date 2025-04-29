@@ -6,7 +6,8 @@ const RecipeGenerator = () => {
   const [allergies, setAllergies] = useState("");
   const [cuisine, setCuisine] = useState("Any");
   const [maxTime, setMaxTime] = useState(60);
-  const [recipe, setRecipe] = useState("");
+  const [aiRecipes, setAiRecipes] = useState([]);
+  const [selectedRecipeIndex, setSelectedRecipeIndex] = useState(0);
   const [spoonacularRecipes, setSpoonacularRecipes] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -66,7 +67,8 @@ const RecipeGenerator = () => {
     }
     setLoading(true);
     setError("");
-    setRecipe("");
+    setAiRecipes([]);
+    setSelectedRecipeIndex(0);
     setSpoonacularRecipes([]);
 
     try {
@@ -77,8 +79,10 @@ const RecipeGenerator = () => {
         max_time: maxTime
       });
 
-      // Set AI-generated recipe
-      setRecipe(response.data.ai_recipe);
+      // Set AI-generated recipes
+      if (response.data.ai_recipes && response.data.ai_recipes.length > 0) {
+        setAiRecipes(response.data.ai_recipes);
+      }
       
       // Set Spoonacular recipes if available
       if (response.data.spoonacular_recipes && response.data.spoonacular_recipes.length > 0) {
@@ -90,6 +94,11 @@ const RecipeGenerator = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Handle recipe selection
+  const handleRecipeSelect = (index) => {
+    setSelectedRecipeIndex(index);
   };
 
   return (
@@ -228,13 +237,31 @@ const RecipeGenerator = () => {
       {error && <p className="error-message">{error}</p>}
 
       {/* Recipe Results */}
-      {recipe && (
+      {aiRecipes.length > 0 && (
         <div className="results-section">
+          {/* Recipe Selection Buttons */}
+          <div className="recipe-buttons">
+            <h2>AI-Generated Recipes:</h2>
+            <div className="button-container">
+              {aiRecipes.map((recipe, index) => (
+                <button
+                  key={index}
+                  onClick={() => handleRecipeSelect(index)}
+                  className={`recipe-button ${selectedRecipeIndex === index ? 'selected' : ''}`}
+                >
+                  Recipe {index + 1}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Selected Recipe Display */}
           <div className="recipe-box">
-            <h2>AI-Generated Recipe:</h2>
-            <pre className="recipe-content">{recipe}</pre>
+            <h3>Selected Recipe:</h3>
+            <pre className="recipe-content">{aiRecipes[selectedRecipeIndex]}</pre>
           </div>
           
+          {/* Spoonacular Recipes */}
           {spoonacularRecipes.length > 0 && (
             <div className="spoonacular-recipes">
               <h2>Alternative Recipe Suggestions:</h2>
